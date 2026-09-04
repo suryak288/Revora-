@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "RecoveryOS",
-  description: "RecoveryOS project foundation",
+  title: "Revora",
+  description: "AI-Powered Revenue Recovery & Payment Intelligence",
 };
 
 export default function RootLayout({

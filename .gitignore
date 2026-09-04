@@ -8,7 +8,8 @@ venv/
 .pytest_cache/
 .coverage
 htmlcov/
-backend/artifacts/
+backend/artifacts/*
+!backend/artifacts/recovery_model.pkl
 
 # Node.js and Next.js
 node_modules/

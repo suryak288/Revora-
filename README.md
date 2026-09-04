@@ -1,6 +1,6 @@
-# RecoveryOS
+# Revora
 
-RecoveryOS is an AI revenue-recovery decision system for failed payments. Its future goal is to choose the intervention that produces the best incremental expected net recovery while respecting business and risk guardrails. This repository currently includes a synthetic data foundation, but no model, decisioning, integrations, or dashboard.
+Revora is an AI revenue-recovery decision system for failed payments. Its future goal is to choose the intervention that produces the best incremental expected net recovery while respecting business and risk guardrails. This repository currently includes a synthetic data foundation, but no model, decisioning, integrations, or dashboard.
 
 ## Components
 

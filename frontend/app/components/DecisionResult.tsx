@@ -33,7 +33,7 @@ export default function DecisionResult({ decision }: DecisionResultProps) {
   return (
     <div className={styles.container}>
       <div className={styles.recommendationHeader}>
-        <div className={styles.recommendationLabel}>RecoveryOS recommends</div>
+        <div className={styles.recommendationLabel}>Revora recommends</div>
       </div>
       
       <div className={styles.recommendationBlock}>

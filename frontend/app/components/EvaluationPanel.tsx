@@ -25,7 +25,7 @@ export default function EvaluationPanel() {
         </div>
         
         <div className={styles.statBox}>
-          <span className={styles.statLabel}>RecoveryOS Estimated Net</span>
+          <span className={styles.statLabel}>Revora Estimated Net</span>
           <span className={`${styles.statValue} ${styles.highlight}`}>~53.2%</span>
         </div>
         

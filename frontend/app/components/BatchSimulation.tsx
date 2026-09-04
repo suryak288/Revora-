@@ -103,7 +103,7 @@ export default function BatchSimulation() {
               <thead>
                 <tr>
                   <th>Metric</th>
-                  <th className={styles.primaryCol}>RecoveryOS</th>
+                  <th className={styles.primaryCol}>Revora</th>
                   <th>No-Action</th>
                   <th>Random</th>
                 </tr>

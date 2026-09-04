@@ -112,7 +112,7 @@ export default function Dashboard() {
         <div className={styles.hero}>
           <h1 className={styles.heroTitle}>Recover a failed payment</h1>
           <p className={styles.heroSubtitle}>
-            Enter the payment context and let RecoveryOS determine the highest-value eligible recovery action.
+            Enter the payment context and let Revora determine the highest-value eligible recovery action.
           </p>
         </div>
         

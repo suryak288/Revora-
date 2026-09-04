@@ -10,7 +10,7 @@ export default function Header({ apiStatus, modelLoaded }: HeaderProps) {
   return (
     <header className={styles.header}>
       <div className={styles.logoSection}>
-        <h1 className={styles.title}>RecoveryOS</h1>
+        <h1 className={styles.title}>Revora</h1>
         <span className={styles.subtitle}>AI Revenue Recovery</span>
       </div>
       
