@@ -1,0 +1,91 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: 0;
+}
+
+.recommendationHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-2);
+}
+
+.recommendationLabel {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+.actionName {
+  font-size: 1.5rem;
+  font-weight: 500;
+  color: var(--primary);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.primaryMetricValue {
+  font-size: 3rem;
+  font-weight: 600;
+  color: var(--text-main);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  margin-top: var(--space-4);
+}
+
+.primaryMetricLabel {
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-bottom: var(--space-6);
+}
+
+.metricsGrid {
+  display: flex;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-8);
+}
+
+.metricBlock {
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+}
+
+.metricValue {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-main);
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+}
+
+.metricLabel {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.reasoningBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.reasoningLabel {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+.reasoningText {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0;
+  border-left: 2px solid var(--primary);
+  padding-left: var(--space-3);
+}

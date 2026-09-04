@@ -1,0 +1,152 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--border);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.title {
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: var(--text-main);
+  margin: 0;
+}
+
+.simulatedBadge {
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+}
+
+.timelineEvent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.timelineEvent:last-child {
+  border-bottom: none;
+}
+
+.eventMeta {
+  display: flex;
+  gap: var(--space-4);
+  align-items: center;
+}
+
+.timestamp {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.actionBadge {
+  color: var(--text-main);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.statusIndicator {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-left: auto;
+}
+
+.statusExecuted {
+  color: var(--success-text);
+}
+
+.statusBlocked {
+  color: var(--danger-text);
+}
+
+.statusNoAction {
+  color: var(--text-muted);
+}
+
+.eventMessage {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.eventFinancials {
+  display: flex;
+  gap: var(--space-6);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: var(--space-2);
+}
+
+.eventFinancials span strong {
+  color: var(--text-main);
+  font-weight: 500;
+  font-family: var(--font-mono);
+}
+
+.eventFinancials span.highlight strong {
+  color: var(--primary);
+}
+
+.executionId {
+  font-size: 0.6875rem;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+  margin-top: var(--space-2);
+}
+
+.emptyState {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  padding: var(--space-4) 0;
+}
+
+/* M10: source / execution-mode badges */
+.eventBadges {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  margin-top: var(--space-1);
+}
+
+.eventBadges span {
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+}
+
+.badgeRazorpay {
+  color: var(--primary);
+}
+
+.badgeSynthetic {
+  color: var(--text-dim);
+}
+
+.badgeApi {
+  color: var(--accent-teal, var(--primary));
+}
+
+.badgeSimulated {
+  color: var(--text-dim);
+}

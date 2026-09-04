@@ -1,0 +1,160 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-8);
+}
+
+.disclaimer {
+  display: inline-block;
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: var(--space-2);
+}
+
+.form {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-end;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--space-6);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.input {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  padding: 6px 12px;
+  font-size: 0.8125rem;
+  width: 140px;
+  transition: all 0.2s;
+  border-radius: var(--radius-sm);
+}
+
+.input[type="number"]::-webkit-outer-spin-button,
+.input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--border-focus);
+}
+
+.button {
+  background: var(--bg-surface-hover);
+  color: var(--primary);
+  border: 1px solid var(--border);
+  padding: 6px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  height: 32px; /* matches input height roughly */
+}
+
+.button:hover:not(:disabled) {
+  border-color: var(--primary);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.tableContainer {
+  overflow-x: auto;
+}
+
+.comparisonTable {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.8125rem;
+}
+
+.comparisonTable th {
+  padding: var(--space-3) var(--space-4);
+  color: var(--text-muted);
+  font-weight: 500;
+  border-bottom: 1px solid var(--border);
+}
+
+.comparisonTable td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.primaryCol {
+  color: var(--text-main) !important;
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.deltas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.deltaItem {
+  display: flex;
+  gap: var(--space-4);
+  align-items: center;
+}
+
+.deltaLabel {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-main);
+  width: 200px;
+}
+
+.deltaValue {
+  font-size: 1rem;
+  font-weight: 500;
+  font-family: var(--font-mono);
+}
+
+.highlight {
+  color: var(--primary);
+}
+
+.error {
+  color: var(--danger-text);
+  font-size: 0.8125rem;
+  padding: var(--space-2) 0;
+}

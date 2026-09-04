@@ -1,0 +1,77 @@
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--space-8);
+}
+
+.logoSection {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.title {
+  font-size: 1.125rem;
+  font-weight: 500;
+  margin: 0;
+  color: var(--text-main);
+  letter-spacing: -0.01em;
+}
+
+.subtitle {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+
+.statusSection {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.statusBadge {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.statusBadge::before {
+  content: "";
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--text-muted);
+}
+
+.success {
+  color: var(--text-muted);
+}
+
+.success::before {
+  background-color: var(--primary);
+}
+
+.error {
+  color: var(--danger-text);
+}
+
+.error::before {
+  background-color: var(--danger);
+}
+
+.warning {
+  color: var(--warning-text);
+}
+
+.warning::before {
+  background-color: var(--warning);
+}
