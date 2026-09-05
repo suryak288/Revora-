@@ -1,17 +1,75 @@
 # Revora
 
-Revora is an AI revenue-recovery decision system for failed payments. Its future goal is to choose the intervention that produces the best incremental expected net recovery while respecting business and risk guardrails. This repository currently includes a synthetic data foundation, but no model, decisioning, integrations, or dashboard.
+**AI-Powered Revenue Recovery & Payment Intelligence**
+
+Revora is an AI revenue-recovery decision system for failed payments. Given a failed payment context, it predicts recovery probability for every supported intervention, calculates incremental expected net recovery against a no-action baseline, applies policy guardrails, selects the highest-value eligible intervention, executes bounded actions, records an immutable audit trail, and evaluates policy performance against offline synthetic baselines.
+
+The repository contains a fully implemented ML model, economic decision engine, policy guardrails, simulated execution layer, immutable audit trail, batch evaluation pipeline, REST API, Razorpay Test Mode integration boundary, and a professional Next.js dashboard.
+
+---
+
+## Architecture
+
+```
+Failed Payment
+      │
+      ▼
+Payment Context (decision-time fields only)
+      │
+      ▼
+Action-Aware ML Model
+ P(recovery | context, intervention) × 5 interventions
+      │
+      ▼
+Economic Decision Engine
+ expected_recovered_amount → expected_net_recovery → incremental_expected_net_recovery
+      │
+      ▼
+Policy Guardrails
+ retry limits · staleness · escalation floor · negative IENR
+      │
+      ▼
+Selected Intervention + Decision Reason
+      │
+      ▼
+Fail-Closed Execution Validation
+      │
+      ├─── Synthetic dashboard path ──→ Simulated execution (labeled as SIMULATED)
+      │
+      └─── Razorpay Test Mode path ───→ Razorpay Test API (Payment Link)
+                                        or intentional simulation (retry / escalation)
+      │
+      ▼
+Immutable Audit Event
+ (execution status · economics · guardrail reasons · source · execution_mode)
+      │
+      ▼
+Offline Evaluation
+ IPS + synthetic outcome simulation vs. no-action and random baselines
+```
+
+---
 
 ## Components
 
-- `frontend/` is a minimal Next.js App Router application. It provides the starting web interface and can run without the backend.
-- `backend/` is a FastAPI service. It currently exposes a root endpoint and a health check for local development and automated validation.
+| Path | Role |
+|---|---|
+| `backend/app/data/` | Deterministic synthetic failed-payment dataset |
+| `backend/app/model/` | Action-aware scikit-learn LogisticRegression pipeline |
+| `backend/app/decision/` | Economic decision engine and policy guardrails |
+| `backend/app/execution/` | Provider-neutral execution layer and audit trail |
+| `backend/app/evaluation/` | IPS policy evaluation and batch synthetic simulation |
+| `backend/app/integrations/razorpay/` | Razorpay Test Mode integration boundary |
+| `backend/app/api/` | FastAPI routes and Pydantic schemas |
+| `frontend/` | Next.js + TypeScript dashboard |
 
-The frontend will communicate with the backend over HTTP using JSON. Set `NEXT_PUBLIC_API_BASE_URL` in `frontend/.env.local` to the backend address. The backend allows the local frontend origin through CORS; set `CORS_ORIGINS` in `backend/.env` when the origin differs.
+The frontend communicates with the backend over HTTP/JSON. Set `NEXT_PUBLIC_API_BASE_URL` in `frontend/.env.local` to the backend address. Set `CORS_ORIGINS` in `backend/.env` when origins differ.
 
-## Run locally
+---
 
-Backend (PowerShell):
+## Run Locally
+
+### Backend (PowerShell)
 
 ```powershell
 cd backend
@@ -22,9 +80,15 @@ python -m pip install -r requirements.txt
 python -m uvicorn app.main:app --reload --env-file .env
 ```
 
-The API listens on `http://localhost:8000`. Check `http://localhost:8000/health`.
+The API listens on `http://localhost:8000`. Check `http://localhost:8000/api/v1/health`.
 
-Frontend (a separate PowerShell terminal):
+The trained model artifact (`backend/artifacts/recovery_model.pkl`) is committed to the repository and will load automatically on startup. To retrain from scratch:
+
+```powershell
+python -m app.model.training
+```
+
+### Frontend (separate terminal)
 
 ```powershell
 cd frontend
@@ -33,118 +97,236 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`. For a production build, run `npm run build` from `frontend/`.
+Open `http://localhost:3000`. For a production build: `npm run build` from `frontend/`.
+
+---
 
 ## Tests
-
-Run the backend tests after activating the backend virtual environment:
 
 ```powershell
 cd backend
 python -m pytest
 ```
 
-## Synthetic payment data
+**Current result: 158 tests, 0 failures.**
 
-`backend/app/data/` generates deterministic, synthetic failed-payment cases for future experiments. Each record combines payment and customer history, failure context, a randomly assigned intervention, and an eventual recovery outcome. Synthetic data is used because this foundation needs representative relationships without handling real customer or payment information.
+---
 
-Generate the default 10,000-record dataset, or pass a record count and seed for a reproducible smaller sample:
+## Synthetic Payment Data
+
+`backend/app/data/` generates a deterministic, reproducible synthetic failed-payment dataset. No real customer or payment data is used at any point.
+
+- Default dataset: 10,000 records.
+- Reproducible seeds — same seed always produces the same dataset.
+- Split: **70% training / 15% validation / 15% held-out test** (no payment ID overlap between splits).
+- Each record carries: payment amount, currency, payment method, failure reason, elapsed time, retry count, subscription status, merchant segment, customer history, a randomly assigned intervention, and a synthetic recovery outcome.
+- Outcomes are generated independently after intervention assignment. The intervention is assigned randomly before the outcome is produced, so the dataset reflects randomized experimental structure rather than selection bias.
+- Supported interventions: `retry_payment`, `alternate_payment_method`, `customer_reminder`, `human_escalation`, `no_action`.
+
+Generate a small sample:
 
 ```powershell
-cd backend
 python -c "from app.data.generator import generate_failed_payment_cases; print(generate_failed_payment_cases(record_count=3, seed=2026))"
 ```
 
-Use `split_cases` from `app.data.split` to create reproducible 70% training, 15% validation, and 15% held-out test partitions. It shuffles with a fixed seed and rejects duplicate payment identifiers, so a payment cannot appear in more than one partition. The test partition is generated for later evaluation and is not used by any training logic in this milestone.
+---
 
-## Action-aware recovery model
+## Action-Aware ML Model
 
-`backend/app/model/` contains an interpretable scikit-learn logistic-regression pipeline that estimates `P(recovery | decision-time context, intervention)`. Intervention is an explicit categorical input, so the same payment context can be scored under every supported intervention. It returns probabilities only; it does not calculate economics or choose an action.
+`backend/app/model/` contains an interpretable scikit-learn `LogisticRegression` pipeline that estimates:
 
-The original additive baseline could learn an overall difference for each intervention, but could not represent that an intervention works differently in different contexts. The finalized training workflow compares that baseline with a bounded interaction-aware logistic model using validation Brier score. The interaction-aware variant adds intervention crossed with failure reason, retry bucket, elapsed-time bucket, customer-history bucket, recurring status, and normalized payment-amount bucket. These interactions mirror the synthetic generator's context-specific effects without creating an unrestricted feature explosion.
-
-Allowed inputs are payment amount, currency and payment method, failure reason, elapsed failure time, retry count, subscription status, merchant segment, customer tenure/history, and intervention. The model never uses `recovered`, `recovered_amount`, `recovery_time_hours`, or `intervention_successful` as features. Payment and customer identifiers are also excluded.
-
-Run the reproducible synthetic-data workflow from `backend/`:
-
-```powershell
-python -m app.model.training
+```
+P(recovery | decision-time context, intervention)
 ```
 
-The script trains only on the training partition, selects logistic-regression regularization with validation Brier score, then evaluates the finalized model on the held-out test partition and saves `backend/artifacts/recovery_model.pkl`. Model artifacts are ignored by Git and should be regenerated, not committed.
+Key design decisions:
 
-The diagnostics module measures recovery rates by intervention and relevant contexts, plus the spread between best and worst counterfactual probabilities across held-out payment contexts. The generator assigns interventions randomly before creating outcomes, which avoids intervention-selection confounding in this synthetic setting and lets the model learn conditional intervention estimates. All reported results remain synthetic-data evaluation, not evidence of real-world performance. The held-out test set remains outside training and validation selection.
+- **Intervention is an explicit model input.** The same payment context is scored under all five supported interventions to produce counterfactual probability estimates.
+- **Interaction-aware features** are conditionally included when they reduce validation Brier score versus the additive baseline. Interactions include intervention × failure reason, retry bucket, elapsed-time bucket, customer-history bucket, recurring status, and normalized payment-amount bucket.
+- **Strict leakage exclusion.** The model never uses `recovered`, `recovered_amount`, `recovery_time_hours`, or `intervention_successful` as features. Payment and customer identifiers are also excluded.
+- **Train/validation/test discipline.** The model is trained only on the training partition. Regularization is selected by validation Brier score. The held-out test partition is used only for final evaluation and never for training or model selection.
+- **No online retraining.** The model artifact is loaded at API startup and is never retrained during an HTTP request.
 
-## Economic decision engine
+Model artifact: `backend/artifacts/recovery_model.pkl`
 
-`backend/app/decision/` chooses the recovery intervention that maximises **incremental expected net recovery**, not the one with the highest predicted probability. Probability maximisation ignores the cost of acting and fails to account for payments that would recover naturally without intervention.
+---
 
-The decision uses six distinct concepts, each computed explicitly:
+## Economic Decision Engine
 
-1. **Predicted recovery probability** — `P(recovery | context, intervention)`, produced by the ML model for every supported intervention.
-2. **Expected recovered amount** — `probability × payment_amount`.
-3. **Intervention cost** — a configurable per-intervention simulation cost (INR). Defaults: retry ₹2, alternate payment method ₹5, customer reminder ₹8, human escalation ₹75, no action ₹0.
-4. **Expected net recovery** — `expected_recovered_amount − intervention_cost`.
-5. **Incremental expected net recovery** — `expected_net_recovery(action) − expected_net_recovery(no_action)`. This measures the value the intervention adds beyond what would happen without it.
-6. **Decision** — select the eligible intervention with the highest incremental expected net recovery, only if it exceeds the minimum value threshold (default ₹10). Otherwise select no action.
+`backend/app/decision/` does **not** simply select the intervention with the highest recovery probability.
 
-### Guardrails
+For each guardrail-eligible intervention, the engine computes six values explicitly:
 
-Policy guardrails exclude interventions from consideration before economics are evaluated:
+| Concept | Formula |
+|---|---|
+| Predicted recovery probability | `P(recovery \| context, intervention)` from ML model |
+| Expected recovered amount | `probability × payment_amount` |
+| Intervention cost | Configurable per-intervention cost (INR) |
+| Expected net recovery | `expected_recovered_amount − intervention_cost` |
+| Incremental expected net recovery | `expected_net_recovery(action) − expected_net_recovery(no_action)` |
+| Decision | Highest incremental net recovery if it exceeds the minimum threshold (default ₹10), otherwise `no_action` |
 
-- **Retry limit** — retry is ineligible if the payment has already been retried at or above the configured maximum (default 2).
-- **Staleness limit** — retry is ineligible if more than the configured hours have elapsed since failure (default 72 hours).
-- **Escalation floor** — human escalation is ineligible below the configured minimum payment amount (default ₹2,500).
-- **Negative incremental value** — any intervention whose incremental expected net recovery is negative is excluded.
-- **No action** is always eligible.
+**Default simulated intervention costs (INR):**
 
-### Why no action matters
+| Intervention | Cost |
+|---|---|
+| retry_payment | ₹2 |
+| alternate_payment_method | ₹5 |
+| customer_reminder | ₹8 |
+| human_escalation | ₹75 |
+| no_action | ₹0 |
 
-Without a no-action baseline, the engine would treat every naturally recovering payment as if the intervention created all the recovery value. The incremental calculation prevents this: a payment with 55% natural recovery probability and 57% retry probability produces only ₹100 of incremental value on a ₹5,000 payment — not the ₹2,850 the raw expected recovery suggests. If the cost of acting exceeds the incremental gain, no action is the correct choice.
+The incremental calculation prevents over-crediting naturally recovering payments. A payment with 55% natural recovery probability and 57% retry probability produces only ₹100 of incremental value on a ₹5,000 payment — not the ₹2,850 the raw expected recovery would suggest. If acting costs more than the marginal gain, `no_action` is correct.
 
-### Simulation assumptions
+All costs and thresholds are simulation assumptions denominated in INR. They are not real Razorpay costs and do not represent real-world financial performance.
 
-Intervention costs and the minimum-value threshold are **simulation assumptions** denominated in INR. They are not real Razorpay costs and do not claim real-world financial performance. All policy parameters are centralised in `PolicyConfig` and can be changed without modifying engine logic. The decision engine produces deterministic, auditable explanations describing why each action was selected or excluded.
+### Policy Guardrails
 
-## Batch policy evaluation
+Guardrails exclude interventions before economics are computed:
 
-`backend/app/evaluation/` evaluates the complete RecoveryOS decision policy against a no-action and random baseline using the held-out test split.
+| Guardrail | Default |
+|---|---|
+| Retry limit | Ineligible at ≥ 2 previous retries |
+| Staleness limit | Ineligible if > 72 hours since failure |
+| Escalation floor | Human escalation ineligible below ₹2,500 |
+| Negative IENR | Any intervention with negative incremental net recovery is excluded |
+| No-action | Always eligible |
 
-Because the test dataset assigns interventions randomly, it only contains observed outcomes for one assigned action per record. The evaluation uses **inverse-propensity-score (IPS)** estimation to project what the expected outcome would be if every record followed the deterministic RecoveryOS policy.
+All policy parameters are centralised in `PolicyConfig` and can be changed without modifying engine logic. The engine produces a deterministic, auditable `decision_reason` describing every selection and exclusion.
 
-The known randomised propensity is exactly `1/5` for all five interventions. The evaluation multiplies matching outcomes by the inverse weight and zero-weights mismatches, producing an unbiased estimate of the deterministic policy without requiring counterfactual outcome generation or test-set leakage.
+---
 
-All IPS metrics are statistical projections, not directly observed values. They are not claims of actual recovered money under real-world deployment.
+## Execution and Audit Trail
+
+`backend/app/execution/` is a **provider-neutral** execution layer. The executor performs fail-closed validation before any execution occurs.
+
+### Execution Validation (fail-closed)
+
+Before executing, the executor re-validates:
+- intervention is guardrail-eligible
+- intervention is not `no_action`
+- incremental expected net recovery is non-negative
+
+Only if all checks pass does execution proceed.
+
+### Execution Sources
+
+| Path | `source` | `execution_mode` | Description |
+|---|---|---|---|
+| Dashboard evaluate + execute | `synthetic` | `simulated` | No real payment action. Labeled SIMULATED in the UI. |
+| Razorpay webhook → payment link | `razorpay_test` | `razorpay_test_api` | Calls Razorpay Test Mode API to create a Payment Link |
+| Razorpay webhook → retry / escalation | `razorpay_test` | `simulated` | Intentionally simulated; labeled accordingly in audit |
+
+### Audit Trail
+
+Every execution attempt produces an immutable `AuditEvent` capturing:
+- `execution_status` (`executed`, `blocked`, `no_action`)
+- `execution_message`
+- Full economic justification (predicted probability, expected net recovery, incremental net recovery, intervention cost)
+- Guardrail exclusion reasons
+- `source` and `execution_mode` (to distinguish synthetic from Razorpay Test paths)
+- Synthetic identifiers (`demo_pay_*`, `exec_*`, `event_*`)
+
+**Current limitation:** Audit events are stored in-memory only (`app.execution.audit`) and do not survive a server restart. No external database is used.
+
+---
+
+## Razorpay Test Mode Integration
+
+`backend/app/integrations/razorpay/` introduces a clean integration boundary between Razorpay Test Mode and the core Revora decision system. The core ML model, decision engine, economics, guardrails, and execution layer have no knowledge of Razorpay.
+
+### Architecture
+
+```
+Razorpay Test Mode payment.failed webhook
+      │
+      ▼
+POST /api/v1/webhooks/razorpay
+ raw body captured before parsing
+      │
+      ▼
+HMAC-SHA256 signature verification (constant-time)
+ verified on exact raw bytes — never on re-serialized JSON
+      │
+      ▼
+Event validation (payment.failed only)
+      │
+      ▼
+X-Razorpay-Event-Id idempotency check
+ PROCESSING → COMPLETED / FAILED state machine
+      │
+      ▼
+HTTP 200 accepted (acknowledged quickly)
+      │
+      ▼
+BackgroundTask (async processing)
+      │
+      ▼
+Payload normalization → PaymentContext
+ Unknown customer-history fields use documented fallback values
+      │
+      ▼
+Revora decision engine (provider-neutral — no Razorpay imports)
+      │
+      ▼
+Fail-closed execution validation
+      │
+      ├─── customer_reminder / alternate_payment_method ──→ Razorpay Test API: create Payment Link
+      │                                                      (execution_mode = razorpay_test_api)
+      │
+      └─── retry_payment / human_escalation ─────────────→ Intentional simulation
+                                                            (execution_mode = simulated, labeled)
+      │
+      ▼
+Immutable audit event (source = razorpay_test)
+```
+
+### Critical Distinctions
+
+| Concept | What it means |
+|---|---|
+| Payment Link created | A mechanism for the customer to make a payment. The operation is `create_payment_link`. |
+| Payment recovered | The customer has actually completed the payment. Revora does **not** claim this from Payment Link creation. |
+| Simulated execution | No external API call. Explicitly labeled in audit events and UI. |
+
+### Idempotency States
+
+| State | Meaning |
+|---|---|
+| `PROCESSING` | Event accepted, background task in progress |
+| `COMPLETED` | Event processed successfully — duplicate deliveries are ignored |
+| `FAILED` | Processing failed — the event **can be retried** on next delivery |
+
+### Credentials
+
+Razorpay Test Mode credentials (`RAZORPAY_TEST_KEY_ID`, `RAZORPAY_TEST_KEY_SECRET`, `RAZORPAY_TEST_WEBHOOK_SECRET`) are required to create Payment Links. If credentials are missing, the executor fails closed with `razorpay_test_configuration_missing` — it **never** silently falls back to simulation.
+
+Razorpay integration is **Test Mode only**. No production Razorpay credentials are used or documented in this repository.
+
+---
 
 ## Decision API
 
-The backend exposes a fast, deterministic JSON API for the existing ML model and decision engine. The ML model is loaded safely on application startup and is never trained during an HTTP request.
+All endpoints are under `/api/v1/`.
 
-### Running the API locally
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/v1/health` | API status and whether the ML model is loaded |
+| `POST` | `/api/v1/decide` | Full economic decision and guardrail explanations for a payment context |
+| `POST` | `/api/v1/execute` | Execute the decision and record an audit event |
+| `GET` | `/api/v1/audit` | Return recent audit events |
+| `POST` | `/api/v1/evaluation/simulate` | Run batch synthetic outcome simulation |
+| `POST` | `/api/v1/webhooks/razorpay` | Razorpay Test Mode webhook ingestion |
 
-Start the FastAPI application in development mode:
+**Leakage prevention:** `POST /api/v1/decide` and `POST /api/v1/execute` use Pydantic `extra="forbid"` — outcome fields (`recovered`, `recovered_amount`, `intervention_successful`) are rejected at the schema boundary.
 
-```powershell
-cd backend
-python -m uvicorn app.main:app --reload
-```
+### Example: Evaluate a failed payment
 
-### Endpoints
-
-**`GET /api/v1/health`**
-Returns the API status and whether the ML model artifact is loaded (`{"status": "ok", "model_loaded": true}`). If the model artifact is missing, the API will run safely but will reject decisions.
-
-**`POST /api/v1/decide`**
-Returns the full economic decision and guardrail explanations for a failed payment.
-
-**Leakage Prevention**: The request schema explicitly **forbids** all outcome fields (e.g., `recovered`, `recovered_amount`) using Pydantic's `extra="forbid"` configuration. Only decision-time context is accepted.
-
-**Example Request:**
 ```bash
 curl -X POST http://localhost:8000/api/v1/decide \
   -H "Content-Type: application/json" \
   -d '{
-    "payment_amount": 1500.0,
+    "payment_amount": 3000.0,
     "currency": "INR",
     "payment_method": "card",
     "payment_method_category": "card",
@@ -159,55 +341,117 @@ curl -X POST http://localhost:8000/api/v1/decide \
   }'
 ```
 
-The response includes the `selected_intervention`, expected economic outcomes, incremental net recovery vs baseline, and the deterministic `decision_reason` (including any guardrail exclusions).
+The response includes `selected_intervention`, full economic outcomes for every intervention, incremental net recovery versus no-action, and a deterministic `decision_reason` including guardrail exclusions.
 
-## Professional Dashboard (Frontend)
+---
 
-RecoveryOS includes a Next.js dashboard (`frontend/`) to visually demonstrate the AI decision engine in action. 
+## Batch Policy Evaluation
 
-The dashboard provides a dense, fintech-styled interface showing:
-- Real-time interaction with the local Decision API
-- Full economic comparisons (incremental recovery, success probabilities, and costs)
-- Policy guardrail enforcement reasons
-- Offline evaluation metrics (from Milestone 5)
+`backend/app/evaluation/` evaluates the Revora decision policy against no-action and random baselines on the held-out test split.
 
-**Important**: The dashboard is a research and decision-support interface. It evaluates test cases but **does not execute real payments** or integrate with Razorpay. The displayed evaluation metrics are offline statistical estimates (IPS), not live production data.
+### IPS Evaluation
 
-### Running the Dashboard
+Because the test dataset assigns interventions randomly, it contains observed outcomes only for the assigned action. The evaluation uses **inverse-propensity-score (IPS)** estimation to project what outcomes would look like if every record followed the deterministic Revora policy.
 
-1. **Start the Backend API** (must be running on port 8000):
-   ```powershell
-   cd backend
-   python -m uvicorn app.main:app --reload
-   ```
+- Known randomized propensity: exactly `1/5` for all five interventions.
+- Matching outcomes are multiplied by the inverse weight; mismatches are zero-weighted.
+- Result: an unbiased estimate of the deterministic policy's performance without counterfactual outcome generation or test-set leakage.
 
-2. **Start the Frontend**:
-   ```powershell
-   cd frontend
-   npm run dev
-   ```
+All IPS metrics are statistical projections, not directly observed values. They are not claims of actual revenue recovered in production.
 
-3. **View**: Open `http://localhost:3000` in your browser.
+### Batch Synthetic Outcome Simulation
 
-*Note: The frontend expects the backend at `http://localhost:8000` by default. You can override this by setting `NEXT_PUBLIC_API_BASE_URL` in `frontend/.env.local`.*
+`backend/app/evaluation/batch_simulation.py` evaluates the Revora policy against a held-out test batch (default 1,000 cases) by generating entirely new synthetic outcomes conditional on the chosen intervention.
 
-## Simulated Execution & Audit Trail (Milestone 8)
+- **Strict isolation:** The simulator (`app.evaluation.simulator`) is a separate evaluation environment. The policy evaluates `PaymentContext`, selects an action, and only then does the simulator generate a synthetic outcome. The policy never observes hidden ground-truth probabilities.
+- **Fair comparison:** The exact same batch is evaluated against Revora, No-Action, and Random baselines.
 
-RecoveryOS includes a **simulated execution** layer (`backend/app/execution/`) designed to safely evaluate end-to-end recovery workflows. The backend explicitly distinguishes between evaluating economics and executing actions.
+API endpoint: `POST /api/v1/evaluation/simulate`
 
-- **Fail-Closed Execution**: The executor validates all policy constraints (eligibility, exclusions, minimum thresholds, non-negative IENR) before initiating a simulated action.
-- **Audit Trail**: Every execution attempt produces an immutable `AuditEvent`, capturing the outcome, the underlying economic justification, guardrail violations, and synthetic identifiers (`demo_pay_*`, `exec_*`, `event_*`).
-- **In-Memory Store**: Audit events are persisted only in memory (`app.execution.audit`) and do not survive a server restart. No real databases or external integrations are used.
-- **Strictly Simulated**: The backend API (`/api/v1/execute`) returns simulated confirmation strings. No actual payment, retry, or external network action occurs. The frontend UI clearly labels all execution paths as "SIMULATED EXECUTION".
+---
 
-## Batch Recovery Simulation + Outcome Measurement (Milestone 9)
+## Synthetic Benchmark Results
 
-To prove policy performance, RecoveryOS implements a **deterministic offline synthetic simulation** layer (`backend/app/evaluation/batch_simulation.py`). 
+The following results are from Revora's **synthetic offline evaluation environment**. They are generated entirely from synthetic data. They are **not real production recovery figures** and must not be interpreted as live financial performance.
 
-This mechanism evaluates the RecoveryOS economic policy against a held-out test batch (default 1,000 cases). Unlike the IPS evaluation which re-weights historical randomized outcomes, this simulation actually generates entirely new, synthetic outcomes *conditional* on the chosen intervention. 
+**Batch size: 1,000 | Seed: 2026**
 
-- **Strict Isolation**: The synthetic outcome simulator (`app.evaluation.simulator.simulate_synthetic_outcome`) is an independent evaluation environment. The policy engine evaluates the `PaymentContext`, selects an action, and ONLY THEN is the simulated outcome generated. The policy never sees hidden ground-truth probabilities or latent dataset states.
-- **Fair Comparison**: The exact same test batch is evaluated against the RecoveryOS policy, a strict No-Action baseline, and a Random-Action baseline. 
-- **Offline Synthetic Results**: All results are generated from the synthetic dataset model. **These results are synthetic benchmark results and must not be interpreted as production recovery performance.**
-- **Batch API Endpoint**: `POST /api/v1/evaluation/simulate` performs this evaluation and guarantees leakage protection by dropping unsupported fields.
+| Metric | Revora | No-Action | Random |
+|---|---|---|---|
+| Recovery rate | **53.8%** | 41.9% | 49.6% |
+| Recovered cases | 538 | 419 | 496 |
+| Simulated recovered amount | ~₹7.6L | ~₹5.3L | ~₹7.2L |
+| Intervention cost | ~₹5.2K | ₹0 | ~₹17.7K |
+| Net recovery | **~₹7.6L** | ~₹5.3L | ~₹7.0L |
 
+**Recovery-rate lift vs. no-action: +11.9 percentage points**
+**Incremental net recovery vs. no-action: +₹2,27,091** *(synthetic/offline estimate)*
+
+---
+
+## Live Deployment
+
+| Component | Platform |
+|---|---|
+| Frontend | Vercel |
+| Backend | Render |
+
+The frontend is deployed as a static Next.js build. The backend runs as a FastAPI/Uvicorn service.
+
+### Configuration
+
+| Variable | Where | Purpose |
+|---|---|---|
+| `NEXT_PUBLIC_API_BASE_URL` | `frontend/.env.local` | Backend API URL for the frontend |
+| `CORS_ORIGINS` | `backend/.env` | Allowed frontend origins |
+| `RAZORPAY_TEST_KEY_ID` | `backend/.env` | Razorpay Test Mode key ID |
+| `RAZORPAY_TEST_KEY_SECRET` | `backend/.env` | Razorpay Test Mode key secret |
+| `RAZORPAY_TEST_WEBHOOK_SECRET` | `backend/.env` | Razorpay Test Mode webhook secret |
+
+Use `backend/.env.example` and `frontend/.env.example` as templates. Never commit actual `.env` files or secrets.
+
+### Production Dashboard Demo
+
+The deployed Revora dashboard has been verified to:
+
+- Connect the frontend to the production FastAPI backend.
+- Evaluate a ₹3,000 payment context.
+- Select **Customer Reminder** with approximately **71.9%** predicted recovery probability.
+- Calculate approximately **₹2,148 expected net recovery** and **+₹730 incremental expected net recovery**.
+- Execute the customer-reminder action through the simulated execution path.
+- Record the execution in the in-memory audit trail.
+
+This is a demonstration using the synthetic/simulated execution path. It is not a real recovered payment.
+
+---
+
+## Frontend Dashboard
+
+`frontend/` is a Next.js + TypeScript application using the App Router. The interface is a professional dark fintech-style dashboard.
+
+**Evaluation and execution flow:**
+
+1. **Payment Context** — enter failed payment details.
+2. **Revora Recommends** — the decision engine selects an intervention.
+3. **Why this decision** — full economic breakdown, counterfactual comparison, and guardrail exclusion reasons.
+4. **Execute** — trigger the fail-closed execution path.
+5. **Execution Result** — shows whether execution was completed, blocked, or simulated.
+6. **Audit Trail** — immutable audit events with source and execution mode badges.
+7. **Offline Evaluation** — batch synthetic simulation results.
+
+The UI clearly distinguishes simulated execution (standard dashboard path) from Razorpay Test Mode execution where applicable.
+
+---
+
+## Limitations — What Revora Does Not Claim
+
+| Limitation | Detail |
+|---|---|
+| Synthetic data only | No real customer or payment data is used anywhere in this system |
+| Synthetic/offline benchmark | Evaluation results are generated from the same synthetic data model. They are not real-world recovery rates. |
+| Simulated execution (dashboard) | The standard dashboard execute path is explicitly simulated. No real payment action occurs. |
+| Razorpay Test Mode only | The Razorpay integration is Test Mode. No production keys are used or stored. |
+| Payment Link ≠ recovery | Creating a Razorpay Payment Link is an action. Actual recovery requires the customer to complete the payment. Revora does not fabricate `recovered_amount` from Payment Link creation. |
+| In-memory audit store | Audit events do not survive a server restart. No external database is used. |
+| No production performance claim | Revora does not claim any real-world revenue recovery lift, production recovery rate, or live payment performance. |
+| IPS metrics are projections | IPS evaluation produces statistical estimates, not directly observed outcomes. |
